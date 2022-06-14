@@ -1,0 +1,7 @@
+[Unit]
+Description=nico ...
+
+[Service]
+Type=oneshot
+# update this path
+ExecStart=python app.py

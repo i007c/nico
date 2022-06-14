@@ -1,0 +1,9 @@
+[Unit]
+Description=Nico timer
+
+[Timer]
+OnUnitActiveSec=8h
+OnBootSec=1h
+
+[Install]
+WantedBy=timers.target
