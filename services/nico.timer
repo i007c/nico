@@ -2,7 +2,7 @@
 Description=Nico timer
 
 [Timer]
-OnUnitActiveSec=8h
+OnUnitActiveSec=4h
 OnBootSec=1h
 
 [Install]
