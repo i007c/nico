@@ -61,3 +61,7 @@ modify your **nico.service** file and your are good to go.
 systemctl start nico.timer
 systemctl enable nico.timer
 ```
+
+## Todos
+
+* [ ] making this app in **C** just for fun.
