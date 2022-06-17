@@ -85,9 +85,11 @@ def get_air_data(city: dict) -> dict | None:
 def embed_create(city, air_data: list) -> dict:
     # get field
     def GF(item):
+        value = str(item[1]) if item[1] != 0 else '---'
+
         return {
             'name': item[0],
-            'value': str(item[1]),
+            'value': value,
             'inline': True
         }
 
