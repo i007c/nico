@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from threading import Thread
 
-import httpx
+from httpx import Client, NetworkError
 
 from configs import AIR_ATTRS, ATTR_MAP, BASE_DATA, CITIES, TOKEN, WEBHOOKS
 
@@ -32,8 +32,9 @@ def now():
 
 def send_webhooks(**kwargs: dict):
     try:
-        for url in WEBHOOKS:
-            response = httpx.post(url, json={**BASE_DATA, **kwargs})
+        with Client() as client:
+            for url in WEBHOOKS:
+                response = client.post(url, json={**BASE_DATA, **kwargs})
 
             if response.is_error:
                 logger.error(response.text)
@@ -43,84 +44,81 @@ def send_webhooks(**kwargs: dict):
 
 
 def get_air_data(city: dict) -> dict | None:
-    try:
-        air = {}
-        air_beauty = {}
-        params = {'token': TOKEN}
+    air = {}
+    params = {'token': TOKEN}
 
-        with httpx.Client(base_url=f'{HOST}/feed/', params=params) as client:
-            for identity in city['identities']:
-                response = client.get(f'@{identity}')
+    with Client(base_url=f'{HOST}/feed/', params=params) as client:
+        for identity in city['identities']:
+            response = client.get(f'@{identity}')
 
-                if response.is_error:
-                    logger.error(response.text)
-                    return
+            if response.is_error:
+                logger.error(response.text)
+                raise NetworkError(f'Error getting air qualities: @{identity}')
 
-                response = response.json()['data']
-                iaqi = response['iaqi']
+            response = response.json()['data']
+            iaqi = response['iaqi']
 
-                for attr in AIR_ATTRS:
-                    item = iaqi.get(attr)
+            for attr in AIR_ATTRS:
+                item = iaqi.get(attr)
+                avg = air.get(attr, [0, 0])
 
-                    if item:
-                        avg = air.get(attr, [0, 0])
-                        avg[0] = avg[0] + item['v']
-                        avg[1] = avg[1] + 1
-                        air[attr] = avg
+                if item:
+                    avg[0] = avg[0] + item['v']
+                    avg[1] = avg[1] + 1
+                    air[attr] = avg
+                else:
+                    air[attr] = avg
 
-        # get the average
-        for key, value in air.items():
+    # get the average
+    for key, value in air.items():
+        if not value[0] or not value[1]:
+            avg = 0
+        else:
             avg = round(value[0] / value[1], 2)
 
-            air[key] = avg
-            air_beauty[ATTR_MAP[key]] = avg
+        air[key] = avg
 
-        return air, air_beauty
-
-    except Exception as e:
-        logger.exception(e)
+    # sort to a list
+    return list(map(lambda attr: (ATTR_MAP[attr], air[attr]), AIR_ATTRS))
 
 
-def embed_create(city, air: dict) -> dict:
-    try:
-
-        # get field
-        def GF(item):
-            return {
-                'name': str(item[0]),
-                'value': str(item[1]),
-                'inline': True
-            }
-
-        fields = list(map(GF, air.items()))
-
-        embed = {
-            'title': city['name'],
-            'color': 15921906,
-            'fields': fields,
+def embed_create(city, air_data: list) -> dict:
+    # get field
+    def GF(item):
+        return {
+            'name': item[0],
+            'value': str(item[1]),
+            'inline': True
         }
 
-        thumbnail = city.get('thumbnail')
-        if thumbnail:
-            embed['thumbnail'] = {
-                'url': thumbnail
-            }
+    fields = list(map(GF, air_data))
 
-        return embed
-    except Exception as e:
-        logger.exception(e)
+    embed = {
+        'title': city['name'],
+        'color': 15921906,
+        'fields': fields,
+    }
+
+    thumbnail = city.get('thumbnail')
+    if thumbnail:
+        embed['thumbnail'] = {
+            'url': thumbnail
+        }
+
+    return embed
 
 
 def handle_city(city):
-    air_data = get_air_data(city)
+    try:
+        air_data = get_air_data(city)
 
-    if not air_data:
-        return
+        embed = embed_create(city, air_data)
 
-    embed = embed_create(city, air_data[1])
+        if embed:
+            embeds.append(embed)
 
-    if embed:
-        embeds.append(embed)
+    except Exception as e:
+        logger.exception(e)
 
 
 def main():
