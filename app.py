@@ -1,6 +1,8 @@
 
 
 import logging
+from datetime import datetime
+from threading import Thread
 
 import httpx
 
@@ -8,6 +10,7 @@ from configs import AIR_ATTRS, ATTR_MAP, BASE_DATA, CITIES, TOKEN, WEBHOOKS
 
 
 HOST = 'https://api.waqi.info'
+embeds = []
 
 
 logging.basicConfig(
@@ -23,12 +26,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def send_webhooks(embed: dict):
-    try:
-        data = {**BASE_DATA, 'embeds': [embed]}
+def now():
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+
+def send_webhooks(**kwargs: dict):
+    try:
         for url in WEBHOOKS:
-            response = httpx.post(url, json=data)
+            response = httpx.post(url, json={**BASE_DATA, **kwargs})
 
             if response.is_error:
                 logger.error(response.text)
@@ -39,29 +44,29 @@ def send_webhooks(embed: dict):
 
 def get_air_data(city: dict) -> dict | None:
     try:
-
         air = {}
         air_beauty = {}
+        params = {'token': TOKEN}
 
-        for identity in city['identities']:
-            url = f'{HOST}/feed/@{identity}/?token={TOKEN}'
-            response = httpx.get(url)
+        with httpx.Client(base_url=f'{HOST}/feed/', params=params) as client:
+            for identity in city['identities']:
+                response = client.get(f'@{identity}')
 
-            if response.is_error:
-                logger.error(response.text)
-                return
+                if response.is_error:
+                    logger.error(response.text)
+                    return
 
-            response = response.json()
-            iaqi = response['data']['iaqi']
+                response = response.json()['data']
+                iaqi = response['iaqi']
 
-            for attr in AIR_ATTRS:
-                item = iaqi.get(attr)
+                for attr in AIR_ATTRS:
+                    item = iaqi.get(attr)
 
-                if item:
-                    avg = air.get(attr, [0, 0])
-                    avg[0] = avg[0] + item['v']
-                    avg[1] = avg[1] + 1
-                    air[attr] = avg
+                    if item:
+                        avg = air.get(attr, [0, 0])
+                        avg[0] = avg[0] + item['v']
+                        avg[1] = avg[1] + 1
+                        air[attr] = avg
 
         # get the average
         for key, value in air.items():
@@ -88,35 +93,52 @@ def embed_create(city, air: dict) -> dict:
             }
 
         fields = list(map(GF, air.items()))
+        date = date.strftime('%Y-%m-%d %H:%M')
 
-        E = {
+        embed = {
             'title': city['name'],
             'color': 15921906,
-            'fields': fields
+            'fields': fields,
         }
 
         thumbnail = city.get('thumbnail')
         if thumbnail:
-            E['thumbnail'] = {
+            embed['thumbnail'] = {
                 'url': thumbnail
             }
 
-        return E
+        return embed
     except Exception as e:
         logger.exception(e)
 
 
+def handle_city(city):
+    air_data = get_air_data(city)
+
+    if not air_data:
+        return
+
+    embed = embed_create(city, air_data[1])
+
+    if embed:
+        embeds.append(embed)
+
+
 def main():
+    threads = []
 
     for city in CITIES:
-        air_data = get_air_data(city)
-        if not air_data:
-            return
+        thread = Thread(target=handle_city, args=(city, ))
+        threads.append(thread)
+        thread.start()
 
-        embed = embed_create(city, air_data[1])
+    for thread in threads:
+        thread.join()
 
-        if embed:
-            send_webhooks(embed)
+    send_webhooks(
+        content=f'**AIR QUALITY REPORT** `{now()}`\n' + '-' * 53,
+        embeds=embeds
+    )
 
 
 if __name__ == '__main__':
