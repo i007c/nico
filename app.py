@@ -90,10 +90,16 @@ def embed_create(city, air: dict) -> dict:
         fields = list(map(GF, air.items()))
 
         E = {
-            'title': city,
+            'title': city['name'],
             'color': 15921906,
             'fields': fields
         }
+
+        thumbnail = city.get('thumbnail')
+        if thumbnail:
+            E['thumbnail'] = {
+                'url': thumbnail
+            }
 
         return E
     except Exception as e:
@@ -107,7 +113,7 @@ def main():
         if not air_data:
             return
 
-        embed = embed_create(city['name'], air_data[1])
+        embed = embed_create(city, air_data[1])
 
         if embed:
             send_webhooks(embed)
