@@ -93,7 +93,6 @@ def embed_create(city, air: dict) -> dict:
             }
 
         fields = list(map(GF, air.items()))
-        date = date.strftime('%Y-%m-%d %H:%M')
 
         embed = {
             'title': city['name'],
