@@ -1,8 +1,9 @@
 
 
+import json
 import logging
+import os
 from datetime import datetime
-from threading import Thread
 
 from httpx import Client, NetworkError
 
@@ -10,7 +11,8 @@ from configs import AIR_ATTRS, ATTR_MAP, BASE_DATA, CITIES, TOKEN, WEBHOOKS
 
 
 HOST = 'https://api.waqi.info'
-embeds = []
+PREVIOUS_DB = 'previous_air_data.json'
+PREVIOUS_DATA = None
 
 
 logging.basicConfig(
@@ -30,33 +32,47 @@ def now():
     return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 
+def init_previous_data():
+    global PREVIOUS_DATA
+
+    if os.path.isfile(PREVIOUS_DB):
+        with open(PREVIOUS_DB, 'r') as db:
+            PREVIOUS_DATA = json.load(db)
+
+
 def send_webhooks(**kwargs: dict):
-    try:
-        with Client() as client:
-            for url in WEBHOOKS:
-                response = client.post(url, json={**BASE_DATA, **kwargs})
+    with Client() as client:
+        for url in WEBHOOKS:
+            response = client.post(url, json={**BASE_DATA, **kwargs})
 
-            if response.is_error:
-                logger.error(response.text)
-
-    except Exception as e:
-        logger.exception(e)
+        if response.is_error:
+            logger.error(response.text)
 
 
-def get_air_data(city: dict) -> dict | None:
+def get_previous_data(city_id: int) -> dict | None:
+    if PREVIOUS_DATA is None:
+        return None
+
+    for city in PREVIOUS_DATA:
+        if city['id'] == city_id:
+            return city['data']
+
+    return None
+
+
+def get_air_data(identities: list[int]) -> dict | None:
     air = {}
     params = {'token': TOKEN}
 
     with Client(base_url=f'{HOST}/feed/', params=params) as client:
-        for identity in city['identities']:
+        for identity in identities:
             response = client.get(f'@{identity}')
 
             if response.is_error:
                 logger.error(response.text)
                 raise NetworkError(f'Error getting air qualities: @{identity}')
 
-            response = response.json()['data']
-            iaqi = response['iaqi']
+            iaqi = response.json()['data']['iaqi']
 
             for attr in AIR_ATTRS:
                 item = iaqi.get(attr)
@@ -78,18 +94,22 @@ def get_air_data(city: dict) -> dict | None:
 
         air[key] = avg
 
-    # sort to a list
-    return list(map(lambda attr: (ATTR_MAP[attr], air[attr]), AIR_ATTRS))
+    return air
 
 
-def embed_create(city, air_data: list) -> dict:
+def make_embed(city, air_data: list) -> dict:
     # get field
     def GF(item):
+        vary = item[2]
         value = str(item[1]) if item[1] != 0 else '---'
+        value_str = value
+
+        if vary:
+            value_str = f'{vary} {value}'
 
         return {
             'name': item[0],
-            'value': value,
+            'value': value_str,
             'inline': True
         }
 
@@ -110,34 +130,65 @@ def embed_create(city, air_data: list) -> dict:
     return embed
 
 
-def handle_city(city):
-    try:
-        air_data = get_air_data(city)
+def handle_city(city) -> tuple[dict, dict]:
 
-        embed = embed_create(city, air_data)
+    air_data = get_air_data(city['identities'])
+    previous_data = get_previous_data(city['id'])
+    embed_air_data = []
 
-        if embed:
-            embeds.append(embed)
+    # get embed air data
+    def GEAD(attr: str):
+        current_value = air_data[attr]
+        previous_value = previous_data[attr]
 
-    except Exception as e:
-        logger.exception(e)
+        vary = None
+
+        if current_value > previous_value:
+            vary = '🔺'
+        elif current_value < previous_value:
+            vary = '🔻'
+
+        return (ATTR_MAP[attr], current_value, vary)
+
+    if previous_data is None:
+        embed_air_data = list(map(
+            lambda attr: (
+                ATTR_MAP[attr], air_data[attr], None
+            ), AIR_ATTRS
+        ))
+    else:
+        embed_air_data = list(map(GEAD, AIR_ATTRS))
+
+    embed = make_embed(city, embed_air_data)
+
+    return air_data, embed
 
 
 def main():
-    threads = []
+    try:
+        init_previous_data()
 
-    for city in CITIES:
-        thread = Thread(target=handle_city, args=(city, ))
-        threads.append(thread)
-        thread.start()
+        embeds = []
+        cities_datas = []
 
-    for thread in threads:
-        thread.join()
+        for city in CITIES:
+            air_data, embed = handle_city(city)
+            embeds.append(embed)
+            cities_datas.append({
+                'id': city['id'],
+                'data': air_data
+            })
 
-    send_webhooks(
-        content=f'**AIR QUALITY REPORT** `{now()}`\n' + '-' * 53,
-        embeds=embeds
-    )
+        send_webhooks(
+            content=f'**AIR QUALITY REPORT** `{now()}`\n' + '-' * 53,
+            embeds=embeds
+        )
+
+        with open(PREVIOUS_DB, 'w') as db:
+            json.dump(cities_datas, db)
+
+    except Exception as e:
+        logger.exception(e)
 
 
 if __name__ == '__main__':
