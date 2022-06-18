@@ -23,6 +23,8 @@ WEBHOOKS = [
 
 CITIES = [
     {
+        # a unique id for each city
+        'id': 0,
         'name': 'City Name',
         # use this url https://api.waqi.info/search/?token=your-token&keyword=london
         # in order to find your city uid's
