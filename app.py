@@ -2,21 +2,23 @@
 
 import json
 import logging
-import os
 from datetime import datetime
+from pathlib import Path
 
 from httpx import Client, NetworkError
 
 from configs import AIR_ATTRS, ATTR_MAP, BASE_DATA, CITIES, TOKEN, WEBHOOKS
 
 
+BASE_DIR = Path(__file__).resolve().parent
+
 HOST = 'https://api.waqi.info'
-PREVIOUS_DB = 'previous_air_data.json'
+PREVIOUS_DB = BASE_DIR / 'previous_air_data.json'
 PREVIOUS_DATA = None
 
 
 logging.basicConfig(
-    filename='warn.log',
+    filename=BASE_DIR / 'warn.log',
     encoding='utf-8',
     level=logging.WARNING,
     format=(
@@ -35,7 +37,7 @@ def now():
 def init_previous_data():
     global PREVIOUS_DATA
 
-    if os.path.isfile(PREVIOUS_DB):
+    if PREVIOUS_DB.is_file():
         with open(PREVIOUS_DB, 'r') as db:
             PREVIOUS_DATA = json.load(db)
 
