@@ -131,3 +131,6 @@ dmypy.json
 
 # configs
 configs.py
+
+# previous data
+previous_air_data.json
