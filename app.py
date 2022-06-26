@@ -146,9 +146,9 @@ def handle_city(city) -> tuple[dict, dict]:
         vary = None
 
         if current_value > previous_value:
-            vary = '🔺'
+            vary = 'ᗑ'
         elif current_value < previous_value:
-            vary = '🔻'
+            vary = 'ᗐ'
 
         return (ATTR_MAP[attr], current_value, vary)
 
