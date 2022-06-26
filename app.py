@@ -182,7 +182,7 @@ def main():
             })
 
         send_webhooks(
-            content=f'**AIR QUALITY REPORT** `{now()}`\n' + '-' * 53,
+            content=f'**AIR QUALITY REPORT** `{now()}`',
             embeds=embeds
         )
 
