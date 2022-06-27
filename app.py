@@ -16,6 +16,10 @@ HOST = 'https://api.waqi.info'
 PREVIOUS_DB = BASE_DIR / 'previous_air_data.json'
 PREVIOUS_DATA = None
 
+GREEN = 56445
+RED = 14811960
+YELLOW = 16766464
+
 
 logging.basicConfig(
     filename=BASE_DIR / 'warn.log',
@@ -99,7 +103,7 @@ def get_air_data(identities: list[int]) -> dict | None:
     return air
 
 
-def make_embed(city, air_data: list) -> dict:
+def make_embed(city, air_data: list, color: int = 15921906) -> dict:
     # get field
     def GF(item):
         vary = item[2]
@@ -119,7 +123,7 @@ def make_embed(city, air_data: list) -> dict:
 
     embed = {
         'title': city['name'],
-        'color': 15921906,
+        'color': color,
         'fields': fields,
     }
 
@@ -132,9 +136,19 @@ def make_embed(city, air_data: list) -> dict:
     return embed
 
 
+def get_color(score: int) -> int:
+    if score < 10:
+        return GREEN
+    elif score < 20:
+        return YELLOW
+    else:
+        return RED
+
+
 def handle_city(city) -> tuple[dict, dict]:
 
     air_data = get_air_data(city['identities'])
+
     previous_data = get_previous_data(city['id'])
     embed_air_data = []
 
@@ -146,9 +160,9 @@ def handle_city(city) -> tuple[dict, dict]:
         vary = None
 
         if current_value > previous_value:
-            vary = 'ᗑ'
+            vary = '▲'
         elif current_value < previous_value:
-            vary = 'ᗐ'
+            vary = '▼'
 
         return (ATTR_MAP[attr], current_value, vary)
 
@@ -161,7 +175,7 @@ def handle_city(city) -> tuple[dict, dict]:
     else:
         embed_air_data = list(map(GEAD, AIR_ATTRS))
 
-    embed = make_embed(city, embed_air_data)
+    embed = make_embed(city, embed_air_data, get_color(air_data['so2']))
 
     return air_data, embed
 
