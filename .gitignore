@@ -128,9 +128,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-
-# configs
-configs.py
-
 # previous data
 previous_air_data.json
+secrets.json
+
