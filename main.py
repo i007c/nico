@@ -3,6 +3,7 @@
 import json
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import httpx
 from httpx import Client, NetworkError
@@ -33,8 +34,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def now():
-    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+def now() -> str:
+    n = datetime.now(ZoneInfo('Asia/Tehran'))
+    return n.strftime('%Y-%m-%d %H:%M:%S')
 
 
 def init_previous_data():
