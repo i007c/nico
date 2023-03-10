@@ -5,16 +5,18 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+import httpx
 from httpx import Client, NetworkError
 
-from configs import AIR_ATTRS, ATTR_MAP, BASE_DATA, CITIES, TOKEN, WEBHOOKS
-
+from configs import AIR_ATTRS, ATTR_MAP, BASE_DATA, CITIES, SECRETS
 
 BASE_DIR = Path(__file__).resolve().parent
 
 HOST = 'https://api.waqi.info'
 PREVIOUS_DB = BASE_DIR / 'previous_air_data.json'
 PREVIOUS_DATA = None
+TOKEN = SECRETS['TOKEN']
+WEBHOOKS = SECRETS['WEBHOOKS']
 
 GREEN = 56445
 RED = 14811960
@@ -47,12 +49,11 @@ def init_previous_data():
 
 
 def send_webhooks(**kwargs: dict):
-    with Client() as client:
-        for url in WEBHOOKS:
-            response = client.post(url, json={**BASE_DATA, **kwargs})
+    for url in WEBHOOKS:
+        response = httpx.post(url, json={**BASE_DATA, **kwargs})
 
-        if response.is_error:
-            logger.error(response.text)
+    if response.is_error:
+        logger.error(response.text)
 
 
 def get_previous_data(city_id: int) -> dict | None:
