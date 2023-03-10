@@ -3,14 +3,11 @@
 import json
 import logging
 from datetime import datetime
-from pathlib import Path
 
 import httpx
 from httpx import Client, NetworkError
 
-from configs import AIR_ATTRS, ATTR_MAP, BASE_DATA, CITIES, SECRETS
-
-BASE_DIR = Path(__file__).resolve().parent
+from configs import AIR_ATTRS, ATTR_MAP, BASE_DATA, BASE_DIR, CITIES, SECRETS
 
 HOST = 'https://api.waqi.info'
 PREVIOUS_DB = BASE_DIR / 'previous_air_data.json'

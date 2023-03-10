@@ -1,7 +1,10 @@
 
 import json
+from pathlib import Path
 
-with open('./secrets.json', 'r') as f:
+BASE_DIR = Path(__file__).resolve().parent
+
+with open(BASE_DIR / 'secrets.json', 'r') as f:
     SECRETS = json.load(f)
 
 CITIES = [
