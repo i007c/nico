@@ -6,4 +6,4 @@ OnUnitActiveSec=4h
 OnBootSec=1h
 
 [Install]
-WantedBy=nico.service
+WantedBy=timers.target
